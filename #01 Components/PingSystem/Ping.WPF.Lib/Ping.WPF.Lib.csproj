@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>K603.$(AssemblyName)</PackageId>
+    <PackageOutputPath>..\Ping.NuGet</PackageOutputPath>
+    <VersionPrefix>$([System.DateTime]::Now.ToString("yy.1MMdd.1HHmm"))</VersionPrefix>
+    <PackageIcon>PingControl.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Images\DarkGray 16x16.png" />
+    <None Remove="Images\Gray 16x16.png" />
+    <None Remove="Images\Green 16x16.png" />
+    <None Remove="Images\Red 16x16.png" />
+    <None Remove="Images\Yellow 16x16.png" />
+    <None Remove="PingControl.bmp" />
+    <None Remove="PingControl.ico" />
+    <None Remove="PingControl._xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Ping.NuGet\PingControl.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\DarkGray 16x16.png" />
+    <Resource Include="Images\Gray 16x16.png" />
+    <Resource Include="Images\Green 16x16.png" />
+    <Resource Include="Images\Red 16x16.png" />
+    <Resource Include="Images\Yellow 16x16.png" />
+    <Resource Include="PingControl.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ping.Core\Ping.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

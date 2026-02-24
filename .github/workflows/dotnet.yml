@@ -1,0 +1,28 @@
+name: PingSystem.NET Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest  
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 9
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Restore
+      run: dotnet restore "#01 Components/PingSystem/PingSystem.sln"
+
+    - name: Build
+      run: dotnet build "#01 Components/PingSystem/PingSystem.sln" --configuration Release --no-restore
+
+    # - name: Test
+    #  run: dotnet test "#01 Components/PingSystem/PingSystem.sln" --configuration Release --no-build --verbosity normal
