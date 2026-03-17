@@ -13,7 +13,7 @@ public class Disease
     [ForeignKey(nameof(ParentDisease))]
     public int? ParentId { get; set; }  // Self-referencing foreign key
 
-
+    [DeleteBehavior(DeleteBehavior.Restrict)]
     [InverseProperty(nameof(SubDiseases))]
     public Disease? ParentDisease { get; set; }  // Navigation property for the parent disease
     [InverseProperty(nameof(ParentDisease))]
