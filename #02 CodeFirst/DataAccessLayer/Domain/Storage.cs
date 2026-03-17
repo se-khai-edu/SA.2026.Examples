@@ -1,6 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Model;
 
+// todo : 5.0 Install Entity Framework Core Tools
+//  Tools -> NuGet Package Manager -> Package Manager Console
+//      Add-Migration InitialCreate
+//      Update-Database
+
 namespace Domain;
 
 // todo : 3.0 Add storage class for database context 
