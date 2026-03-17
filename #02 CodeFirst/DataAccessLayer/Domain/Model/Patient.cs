@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Model;
 
+// todo : 1.2 Add patient model table/class
+
 [PrimaryKey(nameof(Id))]
 public class Patient
 {
@@ -17,8 +19,10 @@ public class Patient
     [Required]
     public DateTime Birth { get; set; }
 
+// todo : 2.2 Add navigation properties of patients 
+
     [InverseProperty(nameof(Diagnosis.Patient))]
-    public virtual ICollection<Diagnosis> Diagnoses { get; set; } = [];  // Navigation property for diagnoses
+    public virtual ICollection<Diagnosis> Diagnoses { get; set; } = [];
 
     public string Name => $"{LastName ?? "Unknown"} {FirstLetter(FirstName)}.{FirstLetter(MiddleName)}.";
     private string? FirstLetter(string s) => 
