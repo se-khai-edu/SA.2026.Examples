@@ -26,5 +26,6 @@ public class Diagnosis
     [DeleteBehavior(DeleteBehavior.Restrict)] // You can't delete a disease while the diagnoses are still present.
     public virtual Disease Disease { get; set; } = null!;
 
-    public override string ToString() => $"{Patient.Name} - {Disease} ({Completion:yyyy-MM-dd})";
+    public override string ToString() 
+        => $"{Patient.Name} - {Disease} ({Completion:yyyy-MM-dd})";
 }

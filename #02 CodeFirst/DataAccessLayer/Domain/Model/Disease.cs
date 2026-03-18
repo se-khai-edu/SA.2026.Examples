@@ -40,5 +40,5 @@ public class Disease
         ? $"{ParentDisease?.FullDescription} > {Description}" 
         : Description;
 
-    public override string ToString() => $"{Id}. {FullDescription})";
+    public override string ToString() => $"{Id}. {FullDescription}";
 }
