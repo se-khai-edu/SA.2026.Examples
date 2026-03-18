@@ -1,0 +1,27 @@
+name: DataAccessLayer Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 9
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Restore & Build
+      run: |
+        dotnet restore "#02 CodeFirst/DataAccessLayer/DataAccessLayer.sln"
+        dotnet build "#02 CodeFirst/DataAccessLayer/DataAccessLayer.sln" --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test "#02 CodeFirst/DataAccessLayer/DataAccessLayer.sln" --configuration Release --no-build --verbosity normal
