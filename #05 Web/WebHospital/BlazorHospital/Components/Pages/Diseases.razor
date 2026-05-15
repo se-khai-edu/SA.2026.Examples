@@ -1,0 +1,195 @@
+﻿@page "/diseases"
+@using BlazorHospital.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<DbStorage> DbContextFactory
+@rendermode InteractiveServer
+
+<PageTitle>Довідник захворювань</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">Довідник захворювань</h2>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header @(isEditing ? "bg-warning text-dark" : "bg-primary text-white")">
+            @(isEditing ? "Редагувати запис" : "Додати нове захворювання")
+        </div>
+        <div class="card-body">
+            <EditForm Model="currentDisease" OnValidSubmit="HandleValidSubmit" FormName="DiseaseForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Опис (Назва)</label>
+                        <InputText @bind-Value="currentDisease.Description" class="form-control" placeholder="Наприклад: ГРИП" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Батьківська категорія</label>
+                        <InputSelect @bind-Value="currentDisease.ParentId" class="form-select">
+                            <option value="">-- Немає (коренева) --</option>
+                            @if (allDiseases != null)
+                            {
+                                @foreach (var d in allDiseases.Where(x => x.Id != currentDisease.Id))
+                                {
+                                    <option value="@d.Id">@d.Description</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success">Зберегти</button>
+                    @if (isEditing)
+                    {
+                        <button type="button" class="btn btn-secondary ms-2" @onclick="CancelEdit">Скасувати</button>
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (allDiseases == null)
+    {
+        <p>Завантаження даних...</p>
+    }
+    else
+    {
+        <table class="table table-hover shadow-sm">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Назва захворювання</th>
+                    <th>Батьківська категорія</th>
+                    <th class="text-center">Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in allDiseases)
+                {
+                    <tr>
+                        <td>@d.Id</td>
+                        <td>@d.Description</td>
+                        <td>@(d.Parent?.Description ?? "—")</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => Edit(d)">Редагувати</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(d.Id)">Видалити</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<Disease>? allDiseases;
+    private Disease currentDisease = new();
+    private bool isEditing = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        // Завантажуємо з Parent для відображення назви категорії
+        allDiseases = await context.Diseases
+            .AsNoTracking()
+            .Include(d => d.Parent)
+            .OrderBy(d => d.Description)
+            .ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            if (isEditing)
+            {
+                context.Diseases.Update(currentDisease);
+            }
+            else
+            {
+                context.Diseases.Add(currentDisease);
+            }
+
+            await context.SaveChangesAsync();
+            await LoadData();
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Помилка збереження: {ex.Message}";
+        }
+    }
+
+    private void Edit(Disease disease)
+    {
+        errorMessage = null;
+        currentDisease = new Disease
+        {
+            Id = disease.Id,
+            Description = disease.Description,
+            ParentId = disease.ParentId
+        };
+        isEditing = true;
+    }
+
+    private async Task Delete(int id)
+    {
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var disease = await context.Diseases
+                .Include(d => d.Diagnoses)
+                .Include(d => d.InverseParent) // Підпорядковані хвороби
+                .FirstOrDefaultAsync(d => d.Id == id);
+
+            if (disease != null)
+            {
+                // Перевірка обмежень моделі
+                if (disease.Diagnoses.Any())
+                {
+                    errorMessage = "Неможливо видалити: це захворювання вже призначене пацієнтам.";
+                    return;
+                }
+
+                if (disease.InverseParent.Any())
+                {
+                    errorMessage = "Неможливо видалити: ця категорія містить підпорядковані захворювання.";
+                    return;
+                }
+
+                context.Diseases.Remove(disease);
+                await context.SaveChangesAsync();
+                await LoadData();
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Системна помилка при видаленні.";
+        }
+    }
+
+    private void CancelEdit() => ResetForm();
+
+    private void ResetForm()
+    {
+        currentDisease = new Disease();
+        isEditing = false;
+    }
+}

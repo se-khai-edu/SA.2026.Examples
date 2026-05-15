@@ -1,0 +1,235 @@
+﻿@page "/diagnoses"
+@using BlazorHospital.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<DbStorage> DbContextFactory
+@rendermode InteractiveServer
+
+<PageTitle>Діагнози пацієнтів</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">Журнал діагнозів</h2>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header @(isEditing ? "bg-warning text-dark" : "bg-primary text-white")">
+            @(isEditing ? "Редагувати діагноз" : "Призначити новий діагноз")
+        </div>
+        <div class="card-body">
+            <EditForm Model="currentDiagnosis" OnValidSubmit="HandleValidSubmit" FormName="DiagnosisForm">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Пацієнт</label>
+                        <InputSelect @bind-Value="currentDiagnosis.PatientId" class="form-select">
+                            <option value="">-- Оберіть пацієнта --</option>
+                            @if (patients != null)
+                            {
+                                @foreach (var p in patients)
+                                {
+                                    <option value="@p.Id">@p.LastName @p.FirstName</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Захворювання</label>
+                        <InputSelect @bind-Value="currentDiagnosis.DiseaseId" class="form-select">
+                            <option value="0">-- Оберіть хворобу --</option>
+                            @if (diseases != null)
+                            {
+                                @foreach (var d in diseases)
+                                {
+                                    <option value="@d.Id">@d.Description</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Завершення (Опис/Дата)</label>
+                        <InputText @bind-Value="currentDiagnosis.Completion" class="form-control" placeholder="Наприклад: Одужання" />
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-save"></i> Зберегти
+                    </button>
+                    @if (isEditing)
+                    {
+                        <button type="button" class="btn btn-secondary ms-2" @onclick="CancelEdit">Скасувати</button>
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (diagnoses == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">Завантаження даних...</p>
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Пацієнт</th>
+                    <th>Захворювання</th>
+                    <th>Статус/Завершення</th>
+                    <th class="text-center">Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in diagnoses)
+                {
+                    <tr>
+                        <td><strong>@d.Patient?.LastName</strong> @d.Patient?.FirstName</td>
+                        <td>@d.Disease?.Description</td>
+                        <td><span class="badge bg-info text-dark">@d.Completion</span></td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => Edit(d)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(d)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<Diagnosis>? diagnoses;
+    private List<Patient>? patients;
+    private List<Disease>? diseases;
+
+    private Diagnosis currentDiagnosis = new();
+    private Diagnosis? originalDiagnosis; // Для зберігання ключа при редагуванні
+    private bool isEditing = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAllData();
+
+    private async Task LoadAllData()
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+
+        diagnoses = await context.Diagnoses
+            .AsNoTracking()
+            .Include(d => d.Patient)
+            .Include(d => d.Disease)
+            .OrderByDescending(d => d.PatientId)
+            .ToListAsync();
+
+        patients = await context.Patients.AsNoTracking().OrderBy(p => p.LastName).ToListAsync();
+        diseases = await context.Diseases.AsNoTracking().OrderBy(d => d.Description).ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (string.IsNullOrEmpty(currentDiagnosis.PatientId) || currentDiagnosis.DiseaseId == 0 || string.IsNullOrEmpty(currentDiagnosis.Completion))
+        {
+            errorMessage = "Будь ласка, заповніть усі поля діагнозу.";
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            if (isEditing && originalDiagnosis != null)
+            {
+                // Оскільки всі поля є частиною первинного ключа,
+                // "оновлення" — це видалення старого і додавання нового запису
+                var oldRecord = await context.Diagnoses.FirstOrDefaultAsync(d =>
+                    d.PatientId == originalDiagnosis.PatientId &&
+                    d.DiseaseId == originalDiagnosis.DiseaseId &&
+                    d.Completion == originalDiagnosis.Completion);
+
+                if (oldRecord != null) context.Diagnoses.Remove(oldRecord);
+            }
+
+            context.Diagnoses.Add(currentDiagnosis);
+            await context.SaveChangesAsync();
+
+            await LoadAllData();
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Помилка: Можливо, такий діагноз уже існує (дублікат ключа).";
+        }
+    }
+
+    private void Edit(Diagnosis d)
+    {
+        errorMessage = null;
+        // Зберігаємо копію оригінальних значень ключа
+        originalDiagnosis = new Diagnosis
+        {
+            PatientId = d.PatientId,
+            DiseaseId = d.DiseaseId,
+            Completion = d.Completion
+        };
+
+        // Копіюємо дані у форму
+        currentDiagnosis = new Diagnosis
+        {
+            PatientId = d.PatientId,
+            DiseaseId = d.DiseaseId,
+            Completion = d.Completion
+        };
+        isEditing = true;
+    }
+
+    private async Task Delete(Diagnosis d)
+    {
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Знаходимо запис за складеним ключем
+            var toDelete = await context.Diagnoses.FirstOrDefaultAsync(x =>
+                x.PatientId == d.PatientId &&
+                x.DiseaseId == d.DiseaseId &&
+                x.Completion == d.Completion);
+
+            if (toDelete != null)
+            {
+                context.Diagnoses.Remove(toDelete);
+                await context.SaveChangesAsync();
+                await LoadAllData();
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Не вдалося видалити запис.";
+        }
+    }
+
+    private void CancelEdit() => ResetForm();
+
+    private void ResetForm()
+    {
+        currentDiagnosis = new Diagnosis();
+        originalDiagnosis = null;
+        isEditing = false;
+    }
+}

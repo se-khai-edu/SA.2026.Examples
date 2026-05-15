@@ -1,0 +1,186 @@
+﻿@page "/patients"
+@using BlazorHospital.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<DbStorage> DbContextFactory
+@rendermode InteractiveServer
+
+<PageTitle>Управління пацієнтами</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">Список пацієнтів</h2>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header @(isEditing ? "bg-warning text-dark" : "bg-primary text-white")">
+            @(isEditing ? "Редагувати пацієнта" : "Додати нового пацієнта")
+        </div>
+        <div class="card-body">
+            <EditForm Model="currentPatient" OnValidSubmit="HandleValidSubmit" FormName="PatientForm">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Прізвище</label>
+                        <InputText @bind-Value="currentPatient.LastName" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Ім'я</label>
+                        <InputText @bind-Value="currentPatient.FirstName" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">По батькові</label>
+                        <InputText @bind-Value="currentPatient.MiddleName" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Дата народження</label>
+                        <InputText @bind-Value="currentPatient.Birth" class="form-control" />
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success">Зберегти</button>
+                    @if (isEditing)
+                    {
+                        <button type="button" class="btn btn-secondary ms-2" @onclick="CancelEdit">Скасувати</button>
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (patients == null)
+    {
+        <p>Завантаження...</p>
+    }
+    else
+    {
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Прізвище</th>
+                    <th>Ім'я</th>
+                    <th>По батькові</th>
+                    <th>Дата народження</th>
+                    <th class="text-center">Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in patients)
+                {
+                    <tr>
+                        <td>@p.LastName</td>
+                        <td>@p.FirstName</td>
+                        <td>@p.MiddleName</td>
+                        <td>@p.Birth</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => EditPatient(p)">Редагувати</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePatient(p.Id)">Видалити</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<Patient>? patients;
+    private Patient currentPatient = new() { Id = "" };
+    private bool isEditing = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadPatients();
+
+    private async Task LoadPatients()
+    {
+        // Створюємо контекст лише для завантаження
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        // Використовуємо AsNoTracking(), щоб уникнути конфліктів відстеження
+        patients = await context.Patients.AsNoTracking().OrderBy(p => p.LastName).ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            if (isEditing)
+            {
+                // Оскільки ми використовуємо окремий контекст, конфлікту "already tracked" не буде
+                context.Patients.Update(currentPatient);
+            }
+            else
+            {
+                currentPatient.Id = Guid.NewGuid().ToString();
+                context.Patients.Add(currentPatient);
+            }
+
+            await context.SaveChangesAsync();
+            await LoadPatients();
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Помилка: {ex.Message}";
+        }
+    }
+
+    private void EditPatient(Patient patient)
+    {
+        // Копіюємо дані, щоб не посилатися на об'єкт у списку
+        currentPatient = new Patient
+        {
+            Id = patient.Id,
+            FirstName = patient.FirstName,
+            LastName = patient.LastName,
+            MiddleName = patient.MiddleName,
+            Birth = patient.Birth
+        };
+        isEditing = true;
+    }
+
+    private async Task DeletePatient(string id)
+    {
+        try
+        {
+            errorMessage = null;
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Перевіряємо наявність діагнозів перед видаленням
+            var patient = await context.Patients
+                .Include(p => p.Diagnoses)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (patient != null)
+            {
+                if (patient.Diagnoses.Any())
+                {
+                    errorMessage = "Не можна видалити пацієнта з активними діагнозами.";
+                    return;
+                }
+
+                context.Patients.Remove(patient);
+                await context.SaveChangesAsync();
+                await LoadPatients();
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Помилка при видаленні.";
+        }
+    }
+
+    private void CancelEdit() => ResetForm();
+    private void ResetForm()
+    {
+        currentPatient = new Patient { Id = "" };
+        isEditing = false;
+    }
+}
